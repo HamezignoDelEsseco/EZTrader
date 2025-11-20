@@ -9,7 +9,8 @@ project(EZTrader)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_library(EZTrader SHARED dllname.cpp)
+add_library(EZTrader SHARED studies.cpp
+)
 
 set_target_properties(EZTrader PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "D:\\SierraChartCME\\Data" OUTPUT_NAME "eztraderMaster"
