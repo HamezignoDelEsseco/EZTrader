@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 4.0)
 
-include_directories("D:\\SierraChartCME\\ACS_Source" "{CMAKE_SOURCE_DIR}")
+include_directories("C:\\SCEZTrade\\ACS_Source" "{CMAKE_SOURCE_DIR}")
 
 message(STATUS "Source dir: ${CMAKE_SOURCE_DIR}")
 message(STATUS "Binary dir: ${CMAKE_BINARY_DIR}")
@@ -13,5 +13,5 @@ add_library(EZTrader SHARED studies.cpp
 )
 
 set_target_properties(EZTrader PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "D:\\SierraChartCME\\Data" OUTPUT_NAME "eztraderMaster"
+        RUNTIME_OUTPUT_DIRECTORY "C:\\SCEZTrade\\Data" OUTPUT_NAME "eztraderMaster"
 )

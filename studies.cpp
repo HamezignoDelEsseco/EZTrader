@@ -25,6 +25,21 @@ SCSFExport scsf_LollipopSignal(SCStudyInterfaceRef sc) {
     SCSubgraphRef EZLow = sc.Subgraph[2];
     SCSubgraphRef ActiveEZIndex = sc.Subgraph[3];
 
+    struct Lollipop
+    {
+        int startIndex = 0;
+        float high = 0;
+        float low = 0;
+        bool active = false;
+    };
+
+    Lollipop* lollipop = reinterpret_cast<Lollipop*>(sc.GetPersistentPointer(0));
+
+    if (lollipop == NULL) {
+        lollipop = new Lollipop;
+        sc.SetPersistentPointer(0, lollipop);
+    }
+
     if (sc.SetDefaults) {
         sc.GraphName = "Lollipop signal";
 
@@ -42,20 +57,6 @@ SCSFExport scsf_LollipopSignal(SCStudyInterfaceRef sc) {
         return;
     }
 
-    struct Lollipop
-    {
-        int startIndex = 0;
-        float high = 0;
-        float low = 0;
-        bool active = false;
-    };
-
-    Lollipop* lollipop = reinterpret_cast<Lollipop*>(sc.GetPersistentPointer(0));
-
-    if (lollipop == NULL) {
-        lollipop = new Lollipop;
-        sc.SetPersistentPointer(0, lollipop);
-    }
 
     sc.DataStartIndex = 1; // We need to look at previous index to make the computation
 
