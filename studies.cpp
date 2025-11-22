@@ -15,34 +15,34 @@ SCSFExport scsf_DummyStudy(SCStudyInterfaceRef sc) {
     TradeSignal[sc.Index] = 1;
 }
 
-SCSFExport scsf_LollipopSignal(SCStudyInterfaceRef sc) {
-    SCInputRef VAPAlertAsk = sc.Input[0];
-    SCInputRef InactivityTickOffset = sc.Input[1];
+SCSFExport scsf_LollipopSignalAsk(SCStudyInterfaceRef sc) {
+    // Takes all lollipops at a local minimum
+    // Signal stays active until a bar closes above the zone OR until there's a new signal
+    int inputIndex = 0;
+    SCInputRef VAPAlertAsk = sc.Input[inputIndex++];
+    SCInputRef InactivityTickOffset = sc.Input[inputIndex++];
+    SCInputRef LocalMinFilter = sc.Input[inputIndex++];
+    SCInputRef MaxZoneSize = sc.Input[inputIndex++];
 
 
-    SCSubgraphRef LollipopSignal = sc.Subgraph[0];
-    SCSubgraphRef EZHigh = sc.Subgraph[1];
-    SCSubgraphRef EZLow = sc.Subgraph[2];
-    SCSubgraphRef ActiveEZIndex = sc.Subgraph[3];
+    SCSubgraphRef EZHigh = sc.Subgraph[0];
+    SCSubgraphRef EZLow = sc.Subgraph[1];
 
     struct Lollipop
     {
-        int startIndex = 0;
+        bool active = false;
+        float startIndex = 0;
         float high = 0;
         float low = 0;
-        bool active = false;
+        float regionSizeInTicks = 0;
     };
 
-    Lollipop* lollipop = reinterpret_cast<Lollipop*>(sc.GetPersistentPointer(0));
-
-    if (lollipop == NULL) {
-        lollipop = new Lollipop;
-        sc.SetPersistentPointer(0, lollipop);
-    }
+    Lollipop* latestlollipop = reinterpret_cast<Lollipop*>(sc.GetPersistentPointer(0));
 
     if (sc.SetDefaults) {
-        sc.GraphName = "Lollipop signal";
+        sc.GraphName = "Lollipop signal ask";
 
+        sc.AutoLoop = 1;
         VAPAlertAsk.Name = "VAP alert at ask";
         VAPAlertAsk.SetStudyID(1);
 
@@ -50,44 +50,84 @@ SCSFExport scsf_LollipopSignal(SCStudyInterfaceRef sc) {
         InactivityTickOffset.SetIntLimits(0, 50);
         InactivityTickOffset.SetInt(0);
 
-        LollipopSignal.Name = "Enter signal";
+        LocalMinFilter.Name = "Min. of N bars (1 = not used)";
+        LocalMinFilter.SetIntLimits(1, 50);
+        LocalMinFilter.SetInt(1);
+
+        MaxZoneSize.Name = "Max. zone size";
+        MaxZoneSize.SetIntLimits(1, 50);
+        MaxZoneSize.SetInt(1);
+
         EZHigh.Name = "EZ high";
+        EZHigh.DrawStyle = DRAWSTYLE_DASH;
+
         EZLow.Name = "EZ low";
-        ActiveEZIndex.Name = "Active EZ index";
+        EZLow.DrawStyle = DRAWSTYLE_DASH;
+
+        sc.ScaleRangeType  = SCALE_SAMEASREGION;
+        sc.GraphRegion = 0;
+    }
+
+    const int idx = sc.Index;
+    const int idxPrev = sc.Index - 1;
+
+
+    if (latestlollipop == NULL) {
+        latestlollipop = new Lollipop;
+        sc.SetPersistentPointer(0, latestlollipop);
+    }
+
+
+    if (idx == 0 || sc.IsNewTradingDay(idx))
+    {
+        // This will be hit in particular during full recalc -> reset all
+        latestlollipop->active = false;
+        latestlollipop->startIndex = 0;
+        latestlollipop->high = 0;
+        latestlollipop->low = 0;
+        latestlollipop->regionSizeInTicks = 0;
         return;
     }
 
+    // if (latestlollipop->active && sc.Close[idxPrev] > latestlollipop->high)
+    // {
+    //     // Shutting down the lollipop if a bar closes above its high
+    //     latestlollipop->active = false;
+    //     latestlollipop->startIndex = 0;
+    //     latestlollipop->high = 0;
+    //     latestlollipop->low = 0;
+    //     latestlollipop->regionSizeInTicks = 0;
+    // }
 
-    sc.DataStartIndex = 1; // We need to look at previous index to make the computation
+    EZHigh[idx] = latestlollipop->high;
+    EZLow[idx] = latestlollipop->low;
 
-    for (int idx = sc.DataStartIndex; idx < sc.ArraySize; idx++) {
+    const float lowestOfNBars = sc.GetLowest(sc.BaseData[SC_LOW], idxPrev, LocalMinFilter.GetInt());
 
-        // Updating lollipop based on latest data
-        if (lollipop->active && sc.Low[idx] - InactivityTickOffset.GetFloat()*sc.TickSize < lollipop->low) {
-            lollipop->active = false;
-        }
+    if (sc.Low[idxPrev] != lowestOfNBars){return;} // Only updating the lollipops at local min / max
 
-        std::vector<SCFloatArray> Zones(10);
-        for (size_t i = 0; i < 5; ++i) {
-            // Ask VAP: we need to collect both top and bottom to know whether we have consecutive alerts !!
-            sc.GetStudyArrayUsingID(VAPAlertAsk.GetStudyID(), 48 + 2*i, Zones[2*i]);
-            sc.GetStudyArrayUsingID(VAPAlertAsk.GetStudyID(), 48 + 2*i + 1, Zones[2*i + 1]);
 
-            if (Zones[2*i][idx-1] != 0 && Zones[2*i + 1][idx-1] != 0) {
-                if (Zones[2*i][idx-1] == sc.Low[idx-1]) {
-                    lollipop->startIndex = idx-1;
-                    lollipop->active = true;
-                    lollipop->high = Zones[2*i + 1][idx-1];
-                    lollipop->low = Zones[2*i][idx-1];
-                    break;
-                }
+    std::vector<SCFloatArray> Zones(10);
+    for (size_t i = 0; i < 5; ++i)
+    {
+        // Ask VAP: we need to collect both top and bottom to know whether we have consecutive alerts !!
+        sc.GetStudyArrayUsingID(VAPAlertAsk.GetStudyID(), 48 + 2 * i, Zones[2 * i]);
+        sc.GetStudyArrayUsingID(VAPAlertAsk.GetStudyID(), 48 + 2 * i + 1, Zones[2 * i + 1]);
+
+        if (Zones[2 * i][idxPrev] != 0 && Zones[2 * i + 1][idxPrev] != 0)
+        {
+            if (Zones[2 * i][idxPrev] == sc.Low[idxPrev])
+            {
+                float zoneSize = (Zones[2 * i + 1][idxPrev] - Zones[2 * i][idxPrev]) / sc.TickSize;
+                if (zoneSize > MaxZoneSize.GetFloat()){return;} // Filtering by maximum zone size
+                latestlollipop->startIndex = idxPrev;
+                latestlollipop->active = true;
+                latestlollipop->high = Zones[2 * i + 1][idxPrev];
+                latestlollipop->low = Zones[2 * i][idxPrev];
+                latestlollipop->regionSizeInTicks = zoneSize;
+                break;
             }
         }
-        if (lollipop->active) {
-            EZHigh[idx] = lollipop->high;
-            EZLow[idx] = lollipop->low;
-            LollipopSignal[idx] = 1;
-            ActiveEZIndex[idx] = lollipop->startIndex;
-        }
     }
+
 }

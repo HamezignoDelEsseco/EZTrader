@@ -10,6 +10,7 @@ project(EZTrader)
 set(CMAKE_CXX_STANDARD 20)
 
 add_library(EZTrader SHARED studies.cpp
+        fvg.cpp
 )
 
 set_target_properties(EZTrader PROPERTIES
