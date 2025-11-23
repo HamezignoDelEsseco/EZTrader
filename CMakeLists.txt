@@ -14,6 +14,7 @@ add_library(EZTrader SHARED studies.cpp
         fvgClosest.cpp
         fvgClosestOptimized.cpp
         fvgClosestATR.cpp
+        fvgLatestATR.cpp
 )
 
 set_target_properties(EZTrader PROPERTIES
