@@ -11,6 +11,9 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_library(EZTrader SHARED studies.cpp
         fvg.cpp
+        fvgClosest.cpp
+        fvgClosestOptimized.cpp
+        fvgClosestATR.cpp
 )
 
 set_target_properties(EZTrader PROPERTIES
