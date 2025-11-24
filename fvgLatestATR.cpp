@@ -14,6 +14,8 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
     SCSubgraphRef LatestActiveFVDnHigh = sc.Subgraph[3];
     SCSubgraphRef LatestActiveFVDnLow  = sc.Subgraph[4];
     SCSubgraphRef LatestActiveFVDnMid  = sc.Subgraph[5];
+    SCSubgraphRef LatestActiveFVUpId  = sc.Subgraph[6];
+    SCSubgraphRef LatestActiveFVDnId  = sc.Subgraph[7];
 
     // A simple FVG struct
     struct FVG
@@ -22,6 +24,7 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
         float low = 0.0f;
         float high = 0.0f;
         float mid = 0.0f;
+        float id = 0;
     };
 
     auto* LastFVGUp = reinterpret_cast<FVG*>(sc.GetPersistentPointer(0));
@@ -43,19 +46,23 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
         ATRMultiplier.SetFloat(2);
 
         // Subgraphs visual setup
-        LatestActiveFVUpHigh.Name = "Up High";
+        LatestActiveFVUpHigh.Name = "UH";
         LatestActiveFVUpHigh.DrawStyle = DRAWSTYLE_DASH;
-        LatestActiveFVUpLow.Name  = "Up Low";
+        LatestActiveFVUpLow.Name  = "UL";
         LatestActiveFVUpLow.DrawStyle = DRAWSTYLE_DASH;
-        LatestActiveFVUpMid.Name  = "Up Mid";
+        LatestActiveFVUpMid.Name  = "UM";
         LatestActiveFVUpMid.DrawStyle = DRAWSTYLE_DASH;
 
-        LatestActiveFVDnHigh.Name = "Dn High";
+        LatestActiveFVDnHigh.Name = "DH";
         LatestActiveFVDnHigh.DrawStyle = DRAWSTYLE_DASH;
-        LatestActiveFVDnLow.Name  = "Dn Low";
+        LatestActiveFVDnLow.Name  = "DL";
         LatestActiveFVDnLow.DrawStyle = DRAWSTYLE_DASH;
-        LatestActiveFVDnMid.Name  = "Dn Mid";
+        LatestActiveFVDnMid.Name  = "DM";
         LatestActiveFVDnMid.DrawStyle = DRAWSTYLE_DASH;
+        LatestActiveFVUpId.Name = "UI";
+        LatestActiveFVUpId.DrawStyle = DRAWSTYLE_HIDDEN;
+        LatestActiveFVDnId.Name = "DI";
+        LatestActiveFVDnId.DrawStyle = DRAWSTYLE_HIDDEN;
 
         sc.ScaleRangeType  = SCALE_SAMEASREGION;
         sc.GraphRegion = 0;
@@ -64,6 +71,9 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
     }
 
     const int idx = sc.Index;
+    float& fvgIdUp = sc.GetPersistentFloat(0);
+    float& fvgIdDn = sc.GetPersistentFloat(1);
+
     if (lastProcessedBar == idx)
         return;
 
@@ -83,13 +93,18 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
     // Reset at start of trading day or early bars
     if (sc.IsNewTradingDay(idx) || idx < 4)
     {
+        fvgIdUp = 0;
+        fvgIdDn = 0;
         LastFVGUp->high = 0.0f;
         LastFVGUp->low = 0.0f;
         LastFVGUp->mid = 0.0f;
+        LastFVGUp->id = 0.0f;
 
         LastFVGDn->high = 0.0f;
         LastFVGDn->low = 0.0f;
         LastFVGDn->mid = 0.0f;
+        LastFVGDn->id = 0.0f;
+
         // reset outputs for cleanliness
         LatestActiveFVUpHigh[idx] = 0.0f;
         LatestActiveFVUpLow[idx]  = 0.0f;
@@ -97,6 +112,8 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
         LatestActiveFVDnHigh[idx] = 0.0f;
         LatestActiveFVDnLow[idx]  = 0.0f;
         LatestActiveFVDnMid[idx]  = 0.0f;
+        LatestActiveFVDnId[idx] = 0.0f;
+        LatestActiveFVUpId[idx] = 0.0f;
 
         lastProcessedBar = idx;
 
@@ -119,19 +136,23 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
     // Insert or update Up FVG keyed by its high (H1). store most recent per key.
     if (FVGUp)
     {
+        fvgIdUp++;
         LastFVGUp->high = L1;
         LastFVGUp->mid = (H3 + L1) / 2.0f;
         LastFVGUp->low = H3;
         LastFVGUp->startIndex = idx - 1;
+        LastFVGUp->id = fvgIdUp;
     }
 
     // Insert or update Down FVG keyed by its low (L3).
     if (FVGDn)
     {
+        fvgIdDn++;
         LastFVGDn->high = L3;
         LastFVGDn->mid = (H1 + L3) / 2.0f;
         LastFVGDn->low = H1;
         LastFVGDn->startIndex = idx - 1;
+        LastFVGDn->id = fvgIdDn;
     }
 
     // Up FVG is stale
@@ -153,10 +174,12 @@ SCSFExport scsf_FVGLatestATR(SCStudyInterfaceRef sc)
     LatestActiveFVUpHigh[idx] = LastFVGUp->high;
     LatestActiveFVUpLow[idx]  = LastFVGUp->low;
     LatestActiveFVUpMid[idx]  = LastFVGUp->mid;
+    LatestActiveFVUpId[idx] = LastFVGUp->id;
 
     LatestActiveFVDnHigh[idx] = LastFVGDn->high;
     LatestActiveFVDnLow[idx]  = LastFVGDn->low;
     LatestActiveFVDnMid[idx]  = LastFVGDn->mid;
+    LatestActiveFVDnId[idx] = LastFVGDn->id;
 
     lastProcessedBar = idx;
 }
